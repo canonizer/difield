@@ -1,0 +1,90 @@
+/** 2-component float-vector */
+using Extran;
+using Extran.Nuda.OpenCLLib;
+
+using System;
+
+namespace DiField {
+  
+  /** simple 2-vector */
+  public struct fvec2 {
+    public nucode this(x : float, y : float) {
+      this.x = x; this.y = y;
+    }
+    public nucode this(r : float) {
+      this.x = r; this.y = r;
+    }
+    public Item[i : int] : float {
+      get {
+        match(i) {
+          | 0 => x
+          | 1 => y
+          | _ => throw ArgumentOutOfRangeException();
+        }
+      }
+    }
+    // a vector with one coordinate replaced with new value (0 = X, 1 = Y)
+    public withCoord(i : int, f : float) : fvec2 {
+      match(i) {
+        | 0 => fvec2(f, y)
+        | 1 => fvec2(x, f)
+        | _ => throw ArgumentOutOfRangeException();
+      }
+    }
+    // 2 flop
+    public static nucode @+(a : fvec2, b : fvec2) : fvec2 {
+      fvec2(a.x + b.x, a.y + b.y)
+    }
+    // 2 flop
+    public static nucode @-(a : fvec2, b : fvec2) : fvec2 {
+      fvec2(a.x - b.x, a.y - b.y)
+    }
+    // 2 flop
+    public static nucode @*(a : fvec2, b : float) : fvec2 {
+      fvec2(a.x * b, a.y * b)
+    }
+    // 2 flop
+    public static nucode @*(a : float, b : fvec2) : fvec2 {
+      fvec2(a * b.x, a * b.y)
+    }
+    // 6 flop
+    public static nucode @/(a : fvec2, b : float) : fvec2 { a * (1.0f / b) }
+    // 2 flop
+    public static nucode max(a : fvec2, b : fvec2) : fvec2 {
+      fvec2(max(a.x, b.x), max(a.y, b.y))
+    }
+    // 2 flop
+    public static nucode min(a : fvec2, b : fvec2) : fvec2 {
+      fvec2(min(a.x, b.x), min(a.y, b.y))
+    }
+    // 3 flop
+    public static nucode dot(a : fvec2, b : fvec2) : float {
+      a.x * b.x + a.y * b.y
+    }
+    // 3 flop
+    public static nucode len2(a : fvec2) : float { dot(a, a) }
+    // 7 flop
+    public static nucode len(a : fvec2) : float { sqrt(len2(a)) }
+    // 13 flop
+    public static nucode nmz(a : fvec2) : fvec2 { a / len(a) }
+    /** rotate pi/2 counter-clockwise */
+    // 1 flop
+    public static nucode orthccw(a : fvec2) : fvec2 { 
+      fvec2(-a.y, a.x)
+    }
+    // 5 flop
+    public static nucode dist2(a : fvec2, b : fvec2) : float { len2(b - a) }
+    // 9 flop
+    public static nucode dist(a : fvec2, b : fvec2) : float { len(b - a) }
+    /** distance from one point to epsilon-vicinity the another; 0 if one point
+      is in epsilon-vicinity of the other*/
+    // 11 flop
+    public static nucode distEps(a : fvec2, b : fvec2, eps : float) : float {
+      max(dist(a, b), eps) - eps
+    }
+    /** x and y coordinates */
+    public x : float;
+    public y : float;
+  }  // fvec2
+
+}

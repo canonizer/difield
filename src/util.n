@@ -1,0 +1,28 @@
+using Extran;
+using Extran.Nuda.OpenCLLib;
+using System;
+using System.Console;
+
+namespace DiField {
+  public module Util {
+
+    public grid2d(m : int, dx : float, dy : float) : array[fvec2] {
+      def ps = ondev array(m * m) : array[fvec2];
+      nuwork(1, 64) do((iy, ix) in (m, m)) {
+        ps[iy * m + ix] = fvec2(ix * dx, iy * dy);
+      }
+      ps
+    }
+
+    // places points on a circle
+    public circular2d(m : int, r : float) : array[fvec2] {
+      def ps = ondev array(m) : array[fvec2];
+      def delta = ((2 * Math.PI) :> float) / m;
+      nuwork(64) do(i in m) {
+        ps[i] = r * fvec2(cos(i * delta), sin(i * delta));
+      }
+      ps
+    }
+
+  }  // Util
+}  // ns

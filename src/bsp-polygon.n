@@ -1,0 +1,328 @@
+using Extran;
+using Extran.Nuda.OpenCLLib;
+using Extran.Stat.PerfStat;
+using Nemerle.Imperative;
+using System;
+using System.Console;
+using System.Collections.Generic;
+
+namespace DiField {
+
+  using fvec2;
+  using edge2;
+
+  /** a 2d axis-aligned rectangle */
+  public struct rect2 {
+    /** initialize a rectange */
+    public nucode this(a : fvec2, b : fvec2) {
+      this.a = a;
+      this.b = b;
+    }
+    public static nucode cohull(p : rect2, q : rect2) : rect2 {
+      rect2(min(p.a, q.a), max(p.b, q.b))
+    }
+    /** square of distance from rectangle to point, 0 if point is inside a
+  rectangle */
+    // 11 flop
+    public static nucode dist2(r : rect2, p : fvec2) : float {
+      len2(max(fvec2(0f), max(r.a - p, p - r.b)))
+    }
+    /** checks whether rectangle contains a point */
+    public contains(p : fvec2) : bool {
+      a.x <= p.x && p.x <= b.x && a.y <= p.y && p.y <= b.y
+    }
+    /** checks whether a rectangle contains any vertex of the edge */
+    public aboutInters(u : fvec2, v : fvec2) : bool {
+      // false if separated by lines passing through one of the rectangle's edge
+      // BEWARE: this works only due to some incorrect optimization 
+      // which makes it work correctly
+      /*def c1 = u.x > a.x && v.x > a.x;
+      def c2 = u.x < b.x && v.x < b.x;
+      def c3 = u.y > a.y && v.y > a.y;
+      def c4 = u.y < b.y && v.y < b.y;*/
+      // these comparisons are correct, but they somehow don't work
+      /*
+      def c1 = u.x < a.x && v.x < a.x;
+      def c2 = u.x > b.x && v.x > b.x;
+      def c3 = u.y < a.y && v.y < a.y;
+      def c4 = u.y > b.y && v.y > b.y;
+       */
+      /*def res = if(contains(u) || contains(v)) true else {
+        def n = orthccw(v - u);
+        def tu = dot(n, u);
+        def (ta, tb, tc, td) = (dot(n, a), dot(n, b), dot(n, fvec2(a.x, b.y)),
+                                dot(n, fvec2(a.y, b.x)));
+        def tmin = min(min(ta, tb), min(tc, td));
+        def tmax = max(max(ta, tb), max(tc, td));
+        def r1 = tmin <= tu && tu <= tmax;
+        r1
+        // false if separated by a line passing through two vertices
+      };
+      //WriteLine(res);
+      res*/
+      contains(u) || contains(v)
+    }
+    /** splits a rectangle along the axis */
+    public split
+    (left : out rect2, right : out rect2, axis : int, split : float) : void {
+      left = rect2(a, b.withCoord(axis, split));
+      right = rect2(a.withCoord(axis, split), b);
+    }
+    /** lower coordinates */
+    public a : fvec2;
+    /** upper coordinates */
+    public b : fvec2;
+  }  // rect2
+  using rect2;
+
+  /** 2d kd-tree node */
+  public struct kdnode2 {
+    /** create a new kdtree node */
+    this
+    (rect : rect2, left : int, right : int, eind : int, elen : int) {
+       this.rect = rect;
+       this.left = left;
+       this.right = right;
+       this.eind = eind;
+       this.elen = elen;
+     }
+    /** creates a leaf node */
+    public static leaf(rect : rect2, eind : int, elen : int) : kdnode2 {
+      kdnode2(rect, 0, 0, eind, elen)
+    }
+    /** creates an inner node */
+    public static inner(rect : rect2, left : int, right : int) : kdnode2 {
+      kdnode2(rect, left, right, 0, 0)
+    }
+    /** square of distance to kd tree node */
+    public static nucode dist2(node : kdnode2, p : fvec2) : float {
+      rect2.dist2(node.rect, p)
+    }
+    /** associated rectangle (to compute distance)  */
+    public mutable rect : rect2;
+    /** left and right subtrees, 0 if none */
+    public left : int;
+    public right : int;
+    /** indices and lengths into list of  edges */
+    public eind : int;
+    public elen : int;
+  } // kdnode2
+  using kdnode2;
+
+  /** simple polygon */
+  public class BspPolygon : SimplePolygon {
+
+    /** new polygon from vertices */
+    public this(vs : array[fvec2]) {
+      base(vs);
+      buildTree();
+    }
+
+    /** builds a BSP tree for the polygon */
+    buildTree() : void {
+
+      // find bounding box for all vertices
+      mutable boxa = vs[0];
+      mutable boxb = vs[0];
+      do(i in n) {
+        boxa = min(boxa, vs[i]);
+        boxb = max(boxb, vs[i]);
+      }
+      def eps = 1e-6f;
+      def box = rect2(boxa - fvec2(eps, eps), boxb + fvec2(eps, eps));
+
+      // list of indices for all edges
+      def allEinds = List();
+      do(i in n)
+        allEinds.Add(i);      
+
+      // dummy node
+      lkdnodes.Add(kdnode2());
+      // build root
+      def _iroot = buildNode(allEinds, box, 0, 0);
+
+      // copy to fixed-length arrays
+      einds = leinds.ToArray();
+      kdnodes = lkdnodes.ToArray();
+      es1 = les1.ToArray();
+      def _rect = recomputeVolumes(1);
+      leinds = null;
+      lkdnodes = null;
+      les1 = null;
+    }  // buildTree()
+
+    /** builds a single node of the tree 
+      @param vinds vertex indices
+      @param einds edge indices
+      @param rect rectangle of the node 
+      @param tdepth depth of the node to build
+      @param axis axis along which to split, 0 for X and 1 for Y
+     */
+    buildNode
+    (einds : List[int], rect : rect2, tdepth : int, axis : int) : int {
+      // no node if empty when(einds.Count == 0) throw Exception();
+      /*WriteLine(string(' ', tdepth) + 
+                $"[$(rect.a.x), $(rect.b.x)] X, " + 
+                $"[$(rect.a.y), $(rect.b.y)], " + 
+                $"nes = $(einds.Count)");*/
+      // reserve place for node
+      def nind = lkdnodes.Count;
+      lkdnodes.Add(kdnode2());
+      mutable node;
+      
+      // check if leaf is to be allocated
+      mutable buildLeaf = false;
+      def count = einds.Count;
+      if(count <= stopElements)
+         buildLeaf = true;
+       else when(tdepth >= maxTreeDepth)
+         buildLeaf = true;
+       
+       // try to split to see whether to build a leaf
+       def leftEinds = List(); def rightEinds = List();
+       def split = ((rect.a + rect.b) / 2)[axis];
+       mutable leftRect; mutable rightRect;
+       rect.split(out leftRect, out rightRect, axis, split);
+       unless(buildLeaf) {
+         // sort edges to right and left
+         foreach(ie in einds) {
+           when(leftRect.aboutInters(vs[ie], vs[(ie + 1) % n]))
+             leftEinds.Add(ie);
+           when(rightRect.aboutInters(vs[ie], vs[(ie + 1) % n]))
+             rightEinds.Add(ie);
+         }         
+         def leftCount = leftEinds.Count;
+         def rightCount = rightEinds.Count;
+         if(leftCount == 0 || rightCount == 0) 
+           buildLeaf = true;
+         else when(leftCount + rightCount >= (overheadFactor * count) :> int)
+           buildLeaf = true;
+       }
+       
+       if(buildLeaf) {
+         // build a leaf
+         def eind = leinds.Count;
+         def elen = einds.Count;
+         foreach(ei in einds) {
+           leinds.Add(ei);
+           les1.Add(es[ei]);
+         }
+         node = kdnode2.leaf(rect, eind, elen);
+       } else {
+         // split recursively
+         def leftInd = buildNode
+           (leftEinds, leftRect, tdepth + 1, (axis + 1) % 2);
+         def rightInd = buildNode
+           (rightEinds, rightRect, tdepth + 1, (axis + 1) % 2);
+         node = kdnode2.inner(rect, leftInd, rightInd);
+       }
+       lkdnodes[nind] = node;
+       nind
+    }  // buildNode()
+
+    /** recompute node volumes */
+    recomputeVolumes(nind : int) : rect2 {
+      def left = kdnodes[nind].left;
+      def right = kdnodes[nind].right;
+      if(left == 0 && right == 0) {
+        // leaf
+        def (eind, elen) = (kdnodes[nind].eind, kdnodes[nind].elen);
+        mutable bboxa = vs[leinds[eind]];
+        mutable bboxb = vs[leinds[eind]];
+        do(ei in eind <> eind + elen - 1) {
+          bboxa = min(bboxa, vs[leinds[ei]]);
+          bboxa = min(bboxa, vs[(leinds[ei] + 1) % n]);
+          bboxb = max(bboxb, vs[leinds[ei]]);
+          bboxb = max(bboxb, vs[(leinds[ei] + 1) % n]);
+        }
+        kdnodes[nind].rect = rect2(bboxa, bboxb);
+      } else {
+        // inner
+        kdnodes[nind].rect = cohull
+        (recomputeVolumes(left), recomputeVolumes(right));         
+      }
+      kdnodes[nind].rect
+    }
+
+    /** new regular polygon */
+    public static new regular(n : int, r : float) : BspPolygon {
+      BspPolygon(regularVs(n, r));
+    }
+
+    /** compute distance field */
+    public override distField(ps : array[fvec2]) : array[float] {
+      def m = ps.Length;
+      // stacks for each point
+      def df = ondev array(m) : array[float];
+      def stacks = ondev array(maxTreeDepth + 4, m) : array[2, int];
+      nuwork(128) do(i in m) {
+        def p = ps[i];
+        //def li = i % 128;
+        // max distance so far
+        mutable d2 = 1e38f;
+        mutable sptr = 0;
+        //def stacks = nulocal array(maxTreeDepth + 4, 128) : array[2, int];
+        stacks[sptr, i] = 1;
+        while(sptr >= 0) {
+          def nind = stacks[sptr, i]; sptr--;
+          def node = kdnodes[nind];
+          def d2node = dist2(node, p);
+          when(d2node > d2)
+            continue;       
+          if(node.left == 0 && node.right == 0) {
+            // leaf
+            // distance to all vertices
+            // distance to all edges
+            do(ei in node.eind <> node.eind + node.elen - 1) {
+              mutable ed2 = dist2(es1[ei], p);
+              //when(ed2 < d2node)
+              //  ed2 = 1e38f;
+              d2 = min(d2, ed2);
+            }
+          } else {
+            // inner - note that BOTH nodes are non-zero
+            def ldist2 = dist2(kdnodes[node.left], p);
+            def rdist2 = dist2(kdnodes[node.right], p);
+            def inear = if(ldist2 < rdist2) node.left else
+              node.right;
+            def ifar = if(inear == node.left) node.right else
+              node.left;
+            stacks[sptr + 1, i] = ifar; sptr++;
+            stacks[sptr + 1, i] = inear; sptr++;
+          }  // if(leaf-inner)
+        }  // while(stack not empty)
+        df[i] = sqrt(d2);
+      }  // do(each point)
+      df      
+    }  // distField()
+
+    public override distFieldEps(_ps : array[fvec2], _eps : float) 
+    : array[float] {
+      throw NotImplementedException();
+    }  // distFieldEps()
+
+    /** maximum BSP tree depth */
+    static maxTreeDepth = 16;
+    /** combined number of vertices and edges in a leaf when we can stop */
+    mutable static config stopElements = 4;
+    /** maximum overhead factor */
+    mutable static config overheadFactor = 1.2;
+
+    /** nodes of kdtree, root is node 1*/
+    mutable kdnodes : array[kdnode2];
+    /** edge indices for nodes*/
+    mutable einds : array[int];
+    /** edges for nodes */
+    mutable es1 : array[edge2];
+
+    /** variable-length versions of arrays above, used only during construction
+    */
+    mutable lkdnodes : List[kdnode2] = List();
+    mutable lvinds : List[int] = List();
+    mutable leinds : List[int] = List();
+    mutable lvs1 : List[fvec2] = List();
+    mutable les1 : List[edge2] = List();
+    
+  }  // class SimplePolygon
+
+}  // ns

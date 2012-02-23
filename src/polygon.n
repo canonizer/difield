@@ -1,0 +1,85 @@
+using Extran;
+using Extran.Nuda.OpenCLLib;
+using Extran.Stat.PerfStat;
+using Nemerle.Imperative;
+using System;
+using System.Console;
+
+namespace DiField {
+
+  using fvec2;
+
+  /** polygon edge */
+  public struct edge2 {
+    
+    /** creates edge from vertices, */
+    public nucode this(a : fvec2, b : fvec2) {
+      this.a = a;
+      ta = 0f;
+      k = nmz(b - a);
+      //n = orthccw(k0);
+      //d = dot(n, a);
+      //k = k0 / dot(k0, b - a);
+      // r = a + t * k
+      tb = dot(k, b - a);
+    }
+
+    /** edge-to-point distance if the same as to-line distance, +inf otherwise
+    */
+    // 13 flop
+    /*
+    public static nucode dist(e : edge2, v : fvec2) : float {
+      def la = dot(e.k, v) - e.l;
+      if(0.0f <= la && la <= 1.0f)
+        abs(dot(e.n, v) - e.d) 
+      else 
+        1e19f;
+    }*/
+    /** edge-to-point distance squared, including vertices */
+    // 17 flop
+    public static nucode dist2(e : edge2, v : fvec2) : float {
+      def tv = clamp(dot(e.k, v - e.a), e.ta, e.tb);
+      dist2(v, e.a + e.k * tv)
+    }
+
+    /** edge-vicinity-to-point distance nearest point is at "lateral" sides of
+    edge (not "vertex" sides), +inf otherwise*/
+    // 15 flop
+    public static nucode distEps(e : edge2, v : fvec2, eps : float) : float {
+      def tv = clamp(dot(e.k, v - e.a), e.ta, e.tb);
+      def d = dist(v, e.a + e.k * tv);
+      max(d - eps, e.ta)
+    }
+    /** first vertex of the edge */
+    public a : fvec2;
+    /** edge direction */
+    public k : fvec2;
+    /** must be 0 */
+    public ta : float;
+    /** distance between b and a */
+    public tb : float;
+  }
+
+  /** interface for an abstract polygon */
+  public abstract class Polygon {
+
+    /** computes distance field to the polygon */
+    public abstract distField(ps : array[fvec2]) : array[float];
+
+    /** computes distance field to eps-vicinity of the polygon */
+    public abstract distFieldEps(ps : array[fvec2], eps : float) : 
+    array[float];
+
+    /** generates vertices for a regular polygon */
+    public static regularVs(n : int, r : float) : array[fvec2] {
+      def vs = array(n) : array[fvec2];
+      def alpha = (2 * Math.PI / n) :> float;
+      nuwork(64) do(i in n) {
+        vs[i] = fvec2(cos(i * alpha), -sin(i * alpha)) * r;
+      }
+      vs
+    }
+
+  }  // class Polygon
+
+} // ns
