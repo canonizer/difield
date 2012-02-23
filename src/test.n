@@ -10,7 +10,7 @@ namespace DiField {
 
   public module DiFieldTest {
     
-    flopsSimple = 20;
+    flopsSimple = 17;
     flopsEpsSimple = 28;
 
     public Main() : void {
@@ -26,7 +26,7 @@ namespace DiField {
       def ps = circular2d(m, r * (1 + 0.1f));
       def t0 = deviceTimeOcl.get();
       // compute distance
-      def dfsimple = simplePoly.distField(ps);      
+      def dfsimple = simplePoly.distField(ps);
       def t1 = deviceTimeOcl.get();
       def dfbsp = bspPoly.distField(ps);      
       def t2 = deviceTimeOcl.get();
@@ -43,10 +43,9 @@ namespace DiField {
       }  // do(i in m)
       WriteLine("check: " + if(passed) "PASSED" else
                 "FAILED");
-      //def _perf = gflops([n, m], flopsSimple, tsimple);
-      //def perf = gflops([n, m], flopsEpsSimple, t);
-      //WriteLine($"time: $t s, performance: $perf gflop/s");
+      //def perf = gflops([n, m], flopsSimple, tsimple);
       WriteLine($"size: $n vertices x $m points");
+      //WriteLine($"time: $tsimple s, performance: $perf gflop/s");      
       WriteLine($"all-to-all computation: $tsimple s");
       WriteLine($"HBV computation: $tbsp s");
       WriteLine($"acceleration: $(tsimple / tbsp) times");

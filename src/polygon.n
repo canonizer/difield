@@ -36,7 +36,7 @@ namespace DiField {
         1e19f;
     }*/
     /** edge-to-point distance squared, including vertices */
-    // 17 flop
+    // 16 flop
     public static nucode dist2(e : edge2, v : fvec2) : float {
       def tv = clamp(dot(e.k, v - e.a), e.ta, e.tb);
       dist2(v, e.a + e.k * tv)

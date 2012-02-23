@@ -255,13 +255,13 @@ namespace DiField {
       // stacks for each point
       def df = ondev array(m) : array[float];
       def stacks = ondev array(maxTreeDepth + 4, m) : array[2, int];
-      nuwork(128) do(i in m) {
+      nuwork(tblock) do(i in m) {
         def p = ps[i];
-        //def li = i % 128;
+        //def li = i % tblock;
         // max distance so far
         mutable d2 = 1e38f;
         mutable sptr = 0;
-        //def stacks = nulocal array(maxTreeDepth + 4, 128) : array[2, int];
+        //def stacks = nulocal array(maxTreeDepth + 4, tblock) : array[2, int];
         stacks[sptr, i] = 1;
         while(sptr >= 0) {
           def nind = stacks[sptr, i]; sptr--;
@@ -303,6 +303,7 @@ namespace DiField {
 
     /** maximum BSP tree depth */
     static maxTreeDepth = 16;
+    static tblock = 128;
     /** combined number of vertices and edges in a leaf when we can stop */
     mutable static config stopElements = 4;
     /** maximum overhead factor */

@@ -31,12 +31,13 @@ namespace DiField {
       def m = ps.Length;
       def n1 = n;
       def df = ondev array(m) : array[float];
+      // AMD: nuwork(128) dmine(8), nothing on inner
+      // NVidia: nuwork(128) dmine(8), unroll(4) inner
       nuwork(128) dmine(8) do(i in m) {
         def p = ps[i];
         mutable d2 = 1e38f;
-        unroll(4) do(j in n1) {
+        do(j in n1)
           d2 = min(d2, dist2(es[j], p));
-        }
         df[i] = sqrt(d2);
       }  // nuwork do
       df
