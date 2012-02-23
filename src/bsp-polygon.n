@@ -27,6 +27,10 @@ namespace DiField {
     public static nucode dist2(r : rect2, p : fvec2) : float {
       len2(max(fvec2(0f), max(r.a - p, p - r.b)))
     }
+    // 15 flop
+    public static nucode dist(r : rect2, p : fvec2) : float {
+      sqrt(dist2(r, p))
+    }
     /** checks whether rectangle contains a point */
     public contains(p : fvec2) : bool {
       a.x <= p.x && p.x <= b.x && a.y <= p.y && p.y <= b.y
@@ -79,24 +83,29 @@ namespace DiField {
   public struct kdnode2 {
     /** create a new kdtree node */
     this
-    (rect : rect2, left : int, right : int, eind : int, elen : int) {
+    (parent : int, rect : rect2, left : int, right : int, eind : int, elen : int) {
        this.rect = rect;
        this.left = left;
        this.right = right;
        this.eind = eind;
        this.elen = elen;
+       this.parent = parent;
      }
     /** creates a leaf node */
-    public static leaf(rect : rect2, eind : int, elen : int) : kdnode2 {
-      kdnode2(rect, 0, 0, eind, elen)
+    public static leaf(parent : int, rect : rect2, eind : int, elen : int) : kdnode2 {
+      kdnode2(parent, rect, 0, 0, eind, elen)
     }
     /** creates an inner node */
-    public static inner(rect : rect2, left : int, right : int) : kdnode2 {
-      kdnode2(rect, left, right, 0, 0)
+    public static inner(parent : int, rect : rect2, left : int, right : int) : kdnode2 {
+      kdnode2(parent, rect, left, right, 0, 0)
     }
     /** square of distance to kd tree node */
     public static nucode dist2(node : kdnode2, p : fvec2) : float {
-      rect2.dist2(node.rect, p)
+      dist2(node.rect, p)
+    }
+    /** distance to kd tree node */
+    public static nucode dist(node : kdnode2, p : fvec2) : float {
+      dist(node.rect, p)
     }
     /** associated rectangle (to compute distance)  */
     public mutable rect : rect2;
@@ -106,6 +115,10 @@ namespace DiField {
     /** indices and lengths into list of  edges */
     public eind : int;
     public elen : int;
+    /** index of parent node */
+    public parent : int;
+    /** NVidia CUDA 4.0 OpenCL crashes without this field */
+    public _dummy : int;
   } // kdnode2
   using kdnode2;
 
@@ -139,7 +152,7 @@ namespace DiField {
       // dummy node
       lkdnodes.Add(kdnode2());
       // build root
-      def _iroot = buildNode(allEinds, box, 0, 0);
+      def _iroot = buildNode(0, allEinds, box, 0, 0);
 
       // copy to fixed-length arrays
       einds = leinds.ToArray();
@@ -152,6 +165,7 @@ namespace DiField {
     }  // buildTree()
 
     /** builds a single node of the tree 
+      @param parent index of parent node
       @param vinds vertex indices
       @param einds edge indices
       @param rect rectangle of the node 
@@ -159,7 +173,7 @@ namespace DiField {
       @param axis axis along which to split, 0 for X and 1 for Y
      */
     buildNode
-    (einds : List[int], rect : rect2, tdepth : int, axis : int) : int {
+    (parent : int, einds : List[int], rect : rect2, tdepth : int, axis : int) : int {
       // no node if empty when(einds.Count == 0) throw Exception();
       /*WriteLine(string(' ', tdepth) + 
                 $"[$(rect.a.x), $(rect.b.x)] X, " + 
@@ -207,14 +221,14 @@ namespace DiField {
            leinds.Add(ei);
            les1.Add(es[ei]);
          }
-         node = kdnode2.leaf(rect, eind, elen);
+         node = kdnode2.leaf(parent, rect, eind, elen);
        } else {
          // split recursively
          def leftInd = buildNode
-           (leftEinds, leftRect, tdepth + 1, (axis + 1) % 2);
+           (nind, leftEinds, leftRect, tdepth + 1, (axis + 1) % 2);
          def rightInd = buildNode
-           (rightEinds, rightRect, tdepth + 1, (axis + 1) % 2);
-         node = kdnode2.inner(rect, leftInd, rightInd);
+           (nind, rightEinds, rightRect, tdepth + 1, (axis + 1) % 2);
+         node = kdnode2.inner(parent, rect, leftInd, rightInd);
        }
        lkdnodes[nind] = node;
        nind
@@ -252,33 +266,28 @@ namespace DiField {
     /** compute distance field */
     public override distField(ps : array[fvec2]) : array[float] {
       def m = ps.Length;
-      // stacks for each point
+      // trying to use stackless algorithm
       def df = ondev array(m) : array[float];
-      def stacks = ondev array(maxTreeDepth + 4, m) : array[2, int];
-      nuwork(tblock) do(i in m) {
+      nuwork(128) do(i in m) {
         def p = ps[i];
-        //def li = i % tblock;
+        mutable inode = 1;
+        mutable iprev = 0;
         // max distance so far
         mutable d2 = 1e38f;
-        mutable sptr = 0;
-        //def stacks = nulocal array(maxTreeDepth + 4, tblock) : array[2, int];
-        stacks[sptr, i] = 1;
-        while(sptr >= 0) {
-          def nind = stacks[sptr, i]; sptr--;
-          def node = kdnodes[nind];
+        while(inode > 0) {
+          def node = kdnodes[inode];
           def d2node = dist2(node, p);
-          when(d2node > d2)
-            continue;       
-          if(node.left == 0 && node.right == 0) {
+          mutable pop = false;
+          if(d2node > d2) {
+            pop = true;       
+          } else if(node.left == 0 && node.right == 0) {
             // leaf
-            // distance to all vertices
             // distance to all edges
             do(ei in node.eind <> node.eind + node.elen - 1) {
               mutable ed2 = dist2(es1[ei], p);
-              //when(ed2 < d2node)
-              //  ed2 = 1e38f;
               d2 = min(d2, ed2);
             }
+            pop = true;
           } else {
             // inner - note that BOTH nodes are non-zero
             def ldist2 = dist2(kdnodes[node.left], p);
@@ -287,9 +296,21 @@ namespace DiField {
               node.right;
             def ifar = if(inear == node.left) node.right else
               node.left;
-            stacks[sptr + 1, i] = ifar; sptr++;
-            stacks[sptr + 1, i] = inear; sptr++;
+            if(iprev == ifar) {
+              pop = true;
+            } else if(iprev == inear) {
+              iprev = inode;
+              inode = ifar;
+            } else {
+              iprev = inode;
+              inode = inear;
+            }
           }  // if(leaf-inner)
+          // check if pop
+          when(pop) {
+            iprev = inode; 
+            inode = node.parent;
+          }
         }  // while(stack not empty)
         df[i] = sqrt(d2);
       }  // do(each point)
@@ -303,7 +324,6 @@ namespace DiField {
 
     /** maximum BSP tree depth */
     static maxTreeDepth = 16;
-    static tblock = 128;
     /** combined number of vertices and edges in a leaf when we can stop */
     mutable static config stopElements = 4;
     /** maximum overhead factor */
