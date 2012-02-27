@@ -45,20 +45,16 @@ namespace DiField {
 
     public override distFieldEps(ps : array[fvec2], eps : float) 
     : array[float] {
-      // TODO: avoid extra copying of ps's initial part
       def m = ps.Length;
       def n1 = n;
       def df = ondev array(m) : array[float];
-      // nuwork(128) dmine(4), unroll(8)
+      // nuwork(128) dmine(4), unroll(4)
       nuwork(128) dmine(4) do(i in m) {
         def p = ps[i];
-        mutable vd = 1e38f;
         mutable ed = 1e38f;
-        unroll(8) do(j in n1) {
-          vd = min(vd, distEps(vs[j], p, eps));
-          ed = min(ed, distEps(es[j], p, eps));
-        }
-        df[i] = min(vd, ed);
+        unroll(4) do(j in n1)
+          ed = min(ed, distEps(es[j], p, eps));       
+        df[i] = ed;
       }  // nuwork do
       df
     }  // distFieldEps()

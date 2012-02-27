@@ -31,6 +31,11 @@ namespace DiField {
     public static nucode dist(r : rect2, p : fvec2) : float {
       sqrt(dist2(r, p))
     }
+    /** distance to epsilon-vicinity of the rectangle */
+    // 17 flop
+    public static nucode distEps(r : rect2, p : fvec2, eps : float) : float {
+      max(dist(r, p), eps) - eps
+    }
     /** checks whether rectangle contains a point */
     public contains(p : fvec2) : bool {
       a.x <= p.x && p.x <= b.x && a.y <= p.y && p.y <= b.y
@@ -84,12 +89,13 @@ namespace DiField {
     /** create a new kdtree node */
     this
     (parent : int, rect : rect2, left : int, right : int, eind : int, elen : int) {
-       this.rect = rect;
-       this.left = left;
-       this.right = right;
-       this.eind = eind;
-       this.elen = elen;
-       this.parent = parent;
+      this.rect = rect;
+      this.left = left;
+      this.right = right;
+      this.eind = eind;
+      this.elen = elen;
+      this.parent = parent;
+      this._dummy = 0;
      }
     /** creates a leaf node */
     public static leaf(parent : int, rect : rect2, eind : int, elen : int) : kdnode2 {
@@ -106,6 +112,11 @@ namespace DiField {
     /** distance to kd tree node */
     public static nucode dist(node : kdnode2, p : fvec2) : float {
       dist(node.rect, p)
+    }
+    /** distance to epsilon-vicinity of kd-tree node */
+    public static nucode distEps(node : kdnode2, p : fvec2, eps : float) 
+    : float {
+      distEps(node.rect, p, eps)
     }
     /** associated rectangle (to compute distance)  */
     public mutable rect : rect2;
@@ -200,9 +211,13 @@ namespace DiField {
        unless(buildLeaf) {
          // sort edges to right and left
          foreach(ie in einds) {
-           when(leftRect.aboutInters(vs[ie], vs[(ie + 1) % n]))
+           def inLeft = leftRect.aboutInters(vs[ie], vs[(ie + 1) % n]);
+           def inRight = rightRect.aboutInters(vs[ie], vs[(ie + 1) % n]);
+           def addToLeft = inLeft && (!inRight || ie % 2 == 0);
+           def addToRight = inRight && (!inLeft || ie % 2 == 1);
+           when(addToLeft)
              leftEinds.Add(ie);
-           when(rightRect.aboutInters(vs[ie], vs[(ie + 1) % n]))
+           when(addToRight)
              rightEinds.Add(ie);
          }         
          def leftCount = leftEinds.Count;
@@ -236,9 +251,8 @@ namespace DiField {
 
     /** recompute node volumes */
     recomputeVolumes(nind : int) : rect2 {
-      def left = kdnodes[nind].left;
-      def right = kdnodes[nind].right;
-      if(left == 0 && right == 0) {
+      def node = kdnodes[nind];
+      if(node.left == 0) {
         // leaf
         def (eind, elen) = (kdnodes[nind].eind, kdnodes[nind].elen);
         mutable bboxa = vs[leinds[eind]];
@@ -252,6 +266,8 @@ namespace DiField {
         kdnodes[nind].rect = rect2(bboxa, bboxb);
       } else {
         // inner
+        def left = kdnodes[nind].left;
+        def right = kdnodes[nind].right;
         kdnodes[nind].rect = cohull
         (recomputeVolumes(left), recomputeVolumes(right));         
       }
@@ -266,7 +282,6 @@ namespace DiField {
     /** compute distance field */
     public override distField(ps : array[fvec2]) : array[float] {
       def m = ps.Length;
-      // trying to use stackless algorithm
       def df = ondev array(m) : array[float];
       nuwork(128) do(i in m) {
         def p = ps[i];
@@ -280,7 +295,7 @@ namespace DiField {
           mutable pop = false;
           if(d2node > d2) {
             pop = true;       
-          } else if(node.left == 0 && node.right == 0) {
+          } else if(node.left == 0) {
             // leaf
             // distance to all edges
             do(ei in node.eind <> node.eind + node.elen - 1) {
@@ -317,15 +332,61 @@ namespace DiField {
       df      
     }  // distField()
 
-    public override distFieldEps(_ps : array[fvec2], _eps : float) 
+    /** computes distance field to epsilon-vicinity of the polygon */
+    public override distFieldEps(ps : array[fvec2], eps : float) 
     : array[float] {
-      throw NotImplementedException();
+      def m = ps.Length;
+      def df = ondev array(m) : array[float];
+      nuwork(256) do(i in m) {
+        def p = ps[i];
+        mutable inode = 1;
+        mutable iprev = 0;
+        // max distance so far
+        mutable d = 1e38f;
+        while(inode > 0) {
+          def node = kdnodes[inode];
+          mutable pop = false;
+          if(distEps(node, p, eps) > d) {
+            pop = true;       
+          } else if(node.left == 0) {
+            // leaf
+            // distance to all edges
+            do(ei in node.eind <> node.eind + node.elen - 1)
+              d = min(d, distEps(es1[ei], p, eps));            
+            pop = true;
+          } else {
+            // inner - note that BOTH nodes are non-zero
+            def ldist = distEps(kdnodes[node.left], p, eps);
+            def rdist = distEps(kdnodes[node.right], p, eps);
+            def inear = if(ldist < rdist) node.left else
+              node.right;
+            def ifar = if(inear == node.left) node.right else
+              node.left;
+            if(iprev == ifar) {
+              pop = true;
+            } else if(iprev == inear) {
+              iprev = inode;
+              inode = ifar;
+            } else {
+              iprev = inode;
+              inode = inear;
+            }
+          }  // if(leaf-inner)
+          // check if pop
+          when(pop) {
+            iprev = inode; 
+            inode = node.parent;
+          }
+        }  // while(stack not empty)
+        df[i] = d;
+      }  // do(each point)
+      df      
     }  // distFieldEps()
 
     /** maximum BSP tree depth */
-    static maxTreeDepth = 16;
+    static maxTreeDepth = 20;
     /** combined number of vertices and edges in a leaf when we can stop */
-    mutable static config stopElements = 4;
+    mutable static config stopElements = 8;
     /** maximum overhead factor */
     mutable static config overheadFactor = 1.2;
 

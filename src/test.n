@@ -17,18 +17,20 @@ namespace DiField {
       config def n = 10000;
       config def m1 = 500;
       config def r = 10f;
-      config def _eps = 0.1f;
+      config def eps = 0.1f;
       def passEps = 1e-7f;
       def m = m1 * m1;
       def simplePoly = SimplePolygon.regular(n, r);
       def bspPoly = BspPolygon.regular(n, r);
       //def ps = grid2d(m1, r / m1, r / m1);
-      def ps = circular2d(m, r * (1 + 0.1f));
+      def ps = circular2d(m, r * (1 - 0.01f));
       def t0 = deviceTimeOcl.get();
       // compute distance
-      def dfsimple = simplePoly.distField(ps);
+      //def dfsimple = simplePoly.distField(ps);
+      def dfsimple = simplePoly.distFieldEps(ps, eps);
       def t1 = deviceTimeOcl.get();
-      def dfbsp = bspPoly.distField(ps);      
+      //def dfbsp = bspPoly.distField(ps);
+      def dfbsp = bspPoly.distFieldEps(ps, eps);
       def t2 = deviceTimeOcl.get();
       def tsimple = t1 - t0;
       def tbsp = t2 - t1;
@@ -39,6 +41,7 @@ namespace DiField {
           WriteLine($"dfsimple[$i] != dfbsp[$i]: " 
                     + $"$(dfsimple[i]) != $(dfbsp[i])");
           passed = false;
+          break;
         }
       }  // do(i in m)
       WriteLine("check: " + if(passed) "PASSED" else
