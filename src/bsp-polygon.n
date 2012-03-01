@@ -27,6 +27,22 @@ namespace DiField {
     public static nucode dist2(r : rect2, p : fvec2) : float {
       len2(max(fvec2(0f), max(r.a - p, p - r.b)))
     }
+    /** square distance to nearest point of rectangle, same as dist2() */
+    // 11 flop
+    public static nucode nearDist2(r : rect2, p : fvec2) : float {
+      dist2(r, p)
+    }
+    /** square distance to farthest point of rectangle */
+    // 15 flop
+    public static nucode farDist2(r : rect2, p : fvec2) : float {
+      def dxa = p.x - r.a.x; def dxb = p.x - r.b.x;
+      def dya = p.y - r.a.y; def dyb = p.y - r.b.y;
+      def d2xa = dxa * dxa; def d2xb = dxb * dxb;
+      def d2ya = dya * dya; def d2yb = dyb * dyb;
+      def d2a = d2xa + d2ya; def d2b = d2xb + d2yb;
+      def d2c = d2xa + d2yb; def d2d = d2xb + d2ya;
+      max(max(d2a, d2b), max(d2c, d2d))
+    }
     // 15 flop
     public static nucode dist(r : rect2, p : fvec2) : float {
       sqrt(dist2(r, p))
@@ -102,12 +118,21 @@ namespace DiField {
       kdnode2(parent, rect, 0, 0, eind, elen)
     }
     /** creates an inner node */
-    public static inner(parent : int, rect : rect2, left : int, right : int) : kdnode2 {
-      kdnode2(parent, rect, left, right, 0, 0)
+    public static inner
+    (parent : int, rect : rect2, left : int, right : int, elen : int) : kdnode2 {
+      kdnode2(parent, rect, left, right, 0, elen)
     }
     /** square of distance to kd tree node */
     public static nucode dist2(node : kdnode2, p : fvec2) : float {
       dist2(node.rect, p)
+    }
+    /** square distance to nearest point in kd tree node, same as dist2() */
+    public static nucode nearDist2(node : kdnode2, p : fvec2) : float {
+      nearDist2(node.rect, p)
+    }
+    /** square distance to farthest point in kd tree node */
+    public static nucode farDist2(node : kdnode2, p : fvec2) : float {
+      farDist2(node.rect, p)
     }
     /** distance to kd tree node */
     public static nucode dist(node : kdnode2, p : fvec2) : float {
@@ -123,7 +148,7 @@ namespace DiField {
     /** left and right subtrees, 0 if none */
     public left : int;
     public right : int;
-    /** indices and lengths into list of  edges */
+    /** index into  */
     public eind : int;
     public elen : int;
     /** index of parent node */
@@ -243,7 +268,7 @@ namespace DiField {
            (nind, leftEinds, leftRect, tdepth + 1, (axis + 1) % 2);
          def rightInd = buildNode
            (nind, rightEinds, rightRect, tdepth + 1, (axis + 1) % 2);
-         node = kdnode2.inner(parent, rect, leftInd, rightInd);
+         node = kdnode2.inner(parent, rect, leftInd, rightInd, einds.Count);
        }
        lkdnodes[nind] = node;
        nind
@@ -382,6 +407,144 @@ namespace DiField {
       }  // do(each point)
       df      
     }  // distFieldEps()
+
+    public override distQuantileField(ps : array[fvec2], perc : float) 
+    : array[float] {
+      // number of quantile element starting from 1
+      def k = (floor(perc * n) :> int) + 1;
+      // precision for quantile estimation
+      def eps = 1e-6f;
+      def m = ps.Length;
+      def qf = ondev array(m) : array[float];      
+      nuwork(128) do(i in m) {
+        def p = ps[i];
+        mutable d2min = 0f; mutable d2max = farDist2(kdnodes[1], p); 
+        mutable d2mid = 0.5f * (d2min + d2max);
+        mutable nmin = 0; mutable nmax = kdnodes[1].elen; mutable nmid = k;
+        // index of starting node, root by default
+        mutable istart = 1; mutable istartPrev = 0;
+        mutable ninner = 0;
+        while(nmax > k) {      
+          d2mid = if(k > nmin) 
+            d2min + (d2max - d2min) * (k + 1 - nmin) / (nmax - nmin)
+          else
+            0.5f * (d2min + d2max);
+          when(d2mid == d2max || d2mid == d2min)
+            break;
+
+          // find the new istart; this is the first node, starting from previous 
+          // istart, where 
+          /*while(true) {
+            def node = kdnodes[istart];
+            // break on leaf
+            when(node.left == 0)
+              break;
+            def leftNode = kdnodes[node.left];
+            def rightNode = kdnodes[node.right];
+            def intersLeft = nearDist2(leftNode, p) < d2max &&
+              farDist2(leftNode, p) >= d2min;
+            def intersRight = nearDist2(rightNode, p) < d2max &&
+              farDist2(rightNode, p) >= d2min;
+            when(intersLeft && intersRight) 
+              break;
+            def istartNext = if(intersLeft) node.left else
+              node.right;
+            def iother = if(intersLeft) node.right else 
+              node.left;
+            def otherNode = kdnodes[iother];
+            when(farDist2(otherNode, p) < d2min)
+              ninner += otherNode.elen;
+            istartPrev = istart; 
+            istart = istartNext;
+          }  // while(not leaf)
+           */
+          mutable inode = istart; mutable iprev = 0;
+          nmid = ninner;
+          // count the total number of edges to which distance is strictly less
+          // than d2mid
+          while(inode > istartPrev) {
+            mutable popup = false;
+            def node = kdnodes[inode];
+            if(farDist2(node, p) < d2mid) {
+              // node falls fully inside d2mid
+              nmid += node.elen;
+              popup = true;
+            } else if(nearDist2(node, p) >= d2mid) {
+              // node falls completely outside d2mid, so cull
+              popup = true;
+            } else if(node.left == 0) {
+              // leaf, check each edge individually
+              do(ie in node.eind <> node.eind + node.elen - 1) {
+                when(dist2(es1[ie], p) < d2mid)              
+                  nmid++;
+              }
+              popup = true;
+            } else {
+              // inner node, fixed left-to-right traversal order
+              if(iprev == node.right) {
+                // done with this subtree
+                popup = true;
+              } else if(iprev == node.left) {
+                // done with left, descend to right
+                iprev = inode;
+                inode = node.right;
+              } else {
+                // first time here, descend left
+                iprev = inode;
+                inode = node.left;
+              }
+            } // if
+            when(popup) {
+              iprev = inode;
+              inode = node.parent;
+            }  // when(popup)
+          }  // while(nodes)
+          // check distance
+          if(nmid < k) {
+            d2min = d2mid;
+            nmin = nmid;
+          } else {
+            d2max = d2mid;
+            nmax = nmid;
+          }
+        }  // while(distance difference > eps)
+
+        // find maximum distance to edge within d2max
+        mutable ed2 = 0f;
+        mutable inode = istart; mutable iprev = 0;
+        while(inode > istartPrev) {
+          def node = kdnodes[inode];
+          def popup = farDist2(node, p) <= d2min || 
+            nearDist2(node, p) > d2max || node.left == 0 || 
+            (node.left != 0 && iprev == node.right);
+          if(node.left == 0) {
+            // leaf, compute max distance
+            do(ie in (node.eind <> node.eind + node.elen - 1)) {
+              def d2 = dist2(es1[ie], p);
+              when(d2 < d2max)
+                ed2 = max(ed2, d2);
+            }  // do(edge)
+          } else when(!popup) {
+            // inner, choose left/right
+            when(iprev != node.right) {
+              def inext = if(iprev == node.left) node.right else
+                node.left;
+              iprev = inode;
+              inode = inext;
+            } // when()
+          }  // if(leaf-inner)
+          when(popup) {
+            iprev = inode;
+            inode = node.parent;
+          }
+        }  // while(inode)
+        qf[i] = sqrt(ed2);
+      }  // nuwork() do(i)
+      /*do(i in m) {
+        WriteLine($"ks[$i] = $(ks[i])");
+      }*/
+      qf
+    }  // distQuantile()
 
     /** maximum BSP tree depth */
     static maxTreeDepth = 20;

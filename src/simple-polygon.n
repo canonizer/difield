@@ -58,6 +58,11 @@ namespace DiField {
       }  // nuwork do
       df
     }  // distFieldEps()
+
+    public override distQuantileField(ps : array[fvec2], perc : float) 
+    : array[float] {
+      throw NotImplementedException();
+    }
     
     /** number of vertices/edges in the polygon */
     protected mutable n : int;

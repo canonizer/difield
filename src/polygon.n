@@ -60,6 +60,11 @@ namespace DiField {
     public abstract distFieldEps(ps : array[fvec2], eps : float) : 
     array[float];
 
+    /** computes quantile distance field to the polygon. That is, 
+      (floor(perc * n))-th smallest distance to point */
+    public abstract distQuantileField(ps : array[fvec2], perc : float) 
+    : array[float];
+
     /** generates vertices for a regular polygon */
     public static regularVs(n : int, r : float) : array[fvec2] {
       def vs = array(n) : array[fvec2];

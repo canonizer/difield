@@ -20,21 +20,23 @@ namespace DiField {
       config def eps = 0.1f;
       def passEps = 1e-7f;
       def m = m1 * m1;
-      def simplePoly = SimplePolygon.regular(n, r);
+      //def simplePoly = SimplePolygon.regular(n, r);
       def bspPoly = BspPolygon.regular(n, r);
       //def ps = grid2d(m1, r / m1, r / m1);
-      def ps = circular2d(m, r * (1 - 0.01f));
+      def ps = circular2d(m, r * (1 - 0.05f));
       def t0 = deviceTimeOcl.get();
       // compute distance
       //def dfsimple = simplePoly.distField(ps);
-      def dfsimple = simplePoly.distFieldEps(ps, eps);
+      //def dfsimple = simplePoly.distFieldEps(ps, eps);
       def t1 = deviceTimeOcl.get();
       //def dfbsp = bspPoly.distField(ps);
-      def dfbsp = bspPoly.distFieldEps(ps, eps);
+      //def dfbsp = bspPoly.distFieldEps(ps, eps);
+      def dfbsp = bspPoly.distQuantileField(ps, 0.015f);
       def t2 = deviceTimeOcl.get();
       def tsimple = t1 - t0;
       def tbsp = t2 - t1;
       // compare simple and BSP dist fields
+      /*
       mutable passed = true;
       do(i in m) {
         when(abs(dfsimple[i] - dfbsp[i]) >= passEps) {
@@ -46,10 +48,11 @@ namespace DiField {
       }  // do(i in m)
       WriteLine("check: " + if(passed) "PASSED" else
                 "FAILED");
+       */
       //def perf = gflops([n, m], flopsSimple, tsimple);
       WriteLine($"size: $n vertices x $m points");
       //WriteLine($"time: $tsimple s, performance: $perf gflop/s");      
-      WriteLine($"all-to-all computation: $tsimple s");
+      //WriteLine($"all-to-all computation: $tsimple s");
       WriteLine($"HBV computation: $tbsp s");
       WriteLine($"acceleration: $(tsimple / tbsp) times");
     }
