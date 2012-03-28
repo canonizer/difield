@@ -1,0 +1,65 @@
+OVERVIEW
+
+difield is a simple library for computing distance fields on GPU. It is written
+in Nemerle and uses NUDA extensions for GPU code. It currently supports
+computing distances to 2D polygons from a set of points. Both all-to-all and
+HBV-based algorithms can be used. Distances to polygon's eps-vicinty and
+distance quantile are supported as well. Distances for 3D polygons are planned
+for the future.
+
+PREREQUISITES
+
+- mono (version 2.0.1)
+- Nemerle (svn 9025)
+- NUDA (current from git; http://nuda.sf.net)
+- libgpuvm (for optimizing host <-> GPU data transfer; otherwise, works, but
+  falls back to full copy; http://github.com/canonizer/libgpuvm)
+
+COMPILING
+
+make
+
+INSTALLING
+
+Will add this section in future. Currently, just drop bin/difield.dll in the
+directory of your app's executable. You may have to set MONO_PATH if working
+with mono.
+
+SAMPLES
+
+To compile a sample, execute 'make' in that sample's directory. To run it,
+execute 'make run'. See samples/common.mk for how to compile your application
+with difield.
+
+USAGE
+
+You can use difield.dll from any .NET language (yes, that includes VB :( ).
+
+In Nemerle:
+ncc -r extran-strategy -r extran-nemerle -r difield -t exe -o \
+myprog.exe myprog.n
+
+In C# (mono):
+mcs -r extran-strategy -r extran-nemerle -r difield -t exe -o \
+myprog.exe myprog.cs
+
+Abstract class Polygon stores information about the polygon. SimplePolygon
+computes distances to each edge and then chooses the minimum, while BspPolygon
+uses HBV to optimize distance computation. struct fvec2 represents a simple
+2-component float vector. 
+
+// create a polygon
+// vertices : array[fvec2], containing successive vertices of the polygon
+def poly = BspPolygon(vertices1);
+
+// compute distance field
+// df : array[float], points : array[fvec2]
+def df = poly.distField(points);
+
+// compute distance to polygons eps-vicinity
+// eps : float
+def df2 = poly.distFieldEps(points, eps);
+
+// compute perc-quantiles of distances to polygon
+// perc : float in 0.0f .. 1.0f
+def qf = poly.distQuantileField(points, perc);

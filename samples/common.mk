@@ -1,6 +1,6 @@
 TGT=../bin/$(NAME).exe
 SRC=src/*.n
-REFS=-r extran-strategy.dll -r extran-nemerle.dll -r ../../bin/difield.dll
+REFS=-r extran-strategy -r extran-nemerle -r ../../bin/difield
 TMP=*~ $(TGT)
 
 build:	$(TGT)
