@@ -413,7 +413,6 @@ namespace DiField {
       // number of quantile element starting from 1
       def k = (floor(perc * n) :> int) + 1;
       // precision for quantile estimation
-      def eps = 1e-6f;
       def m = ps.Length;
       def qf = ondev array(m) : array[float];      
       nuwork(128) do(i in m) {
@@ -434,7 +433,7 @@ namespace DiField {
 
           // find the new istart; this is the first node, starting from previous 
           // istart, where 
-          /*while(true) {
+          /* while(true) {
             def node = kdnodes[istart];
             // break on leaf
             when(node.left == 0)
@@ -540,9 +539,6 @@ namespace DiField {
         }  // while(inode)
         qf[i] = sqrt(ed2);
       }  // nuwork() do(i)
-      /*do(i in m) {
-        WriteLine($"ks[$i] = $(ks[i])");
-      }*/
       qf
     }  // distQuantile()
 

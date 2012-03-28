@@ -59,7 +59,7 @@ namespace DiField {
       df
     }  // distFieldEps()
 
-    public override distQuantileField(ps : array[fvec2], perc : float) 
+    public override distQuantileField(_ps : array[fvec2], _perc : float) 
     : array[float] {
       throw NotImplementedException();
     }
