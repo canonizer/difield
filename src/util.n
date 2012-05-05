@@ -27,8 +27,6 @@ namespace DiField {
       ps
     }
 
-
-
     // places points on a circle
     public circular2d(m : int, r : float) : array[fvec2] {
       def ps = ondev array(m) : array[fvec2];

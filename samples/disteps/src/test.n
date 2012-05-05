@@ -11,7 +11,7 @@ namespace DiFieldTest {
 
   public module DiFieldTest {
     
-    flopsSimpleEps = 28;
+    flopsSimpleEps = 21;
 
     public Main() : void {
       config def n = 10000;
