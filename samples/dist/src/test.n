@@ -14,8 +14,8 @@ namespace DiFieldTest {
     flopsSimple = 17;
 
     public Main() : void {
-      config def n = 100000;
-      config def m1 = 100;
+      config def n = 4000;
+      config def m1 = 1000;
       config def r = 10f;
       def passEps = 1e-7f;
       def m = m1 * m1;
@@ -24,13 +24,18 @@ namespace DiFieldTest {
       //def ps = Util.grid2d(m1, 2 * r / m1, 2 * r / m1);
       def ps = Util.circular2d(m, r * (1f + 0.001f));
       def t0 = deviceTimeOcl.get();
+      def tc0 = copyTimeOcl.get();
       // compute distance
       def dfsimple = simplePoly.distField(ps);
       def t1 = deviceTimeOcl.get();
+      def tc1 = copyTimeOcl.get();
       def dfbsp = bspPoly.distField(ps);
       def t2 = deviceTimeOcl.get();
+      def tc2 = copyTimeOcl.get();
       def tsimple = t1 - t0;
+      def tcsimple = tc1 - tc0;
       def tbsp = t2 - t1;
+      def tcbsp = tc2 - tc1;
       // compare simple and BSP dist fields
       mutable passed = true;
       do(i in m) {
@@ -45,9 +50,11 @@ namespace DiFieldTest {
                 "FAILED");
       def perf = gflops([n, m], flopsSimple, tsimple);
       WriteLine($"size: $n vertices x $m points");
-      WriteLine($"time: $tsimple s, performance: $perf gflop/s");      
       WriteLine($"all-to-all computation: $tsimple s");
+      WriteLine($"all-to-all performance: $perf gflop/s");      
+      WriteLine($"all-to-all copy: $tcsimple s");
       WriteLine($"HBV computation: $tbsp s");
+      WriteLine($"HBV copy time: $tcbsp s");
       WriteLine($"acceleration: $(tsimple / tbsp) times");
     }
   }
