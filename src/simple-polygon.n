@@ -22,8 +22,9 @@ namespace DiField {
       nuwork(64) do(i in n) es[i] = edge2(vs[i], vs[(i + 1) % n]);
     }
     /** new regular polygon */
-    public static regular(n : int, r : float) : SimplePolygon {
-      SimplePolygon(regularVs(n, r));
+    public static regular(n : int, r : float, org : fvec2) 
+    : SimplePolygon {
+      SimplePolygon(regularVs(n, r, org));
     }
 
     public override distField(ps : array[fvec2]) : array[float] {
@@ -31,12 +32,15 @@ namespace DiField {
       def m = ps.Length;
       def n1 = n;
       def df = ondev array(m) : array[float];
-      // AMD: nuwork(128) dmine(8), nothing on inner
+      // Intel CPU (Core 2 Duo, 2.2 GHz, 35,2 gflop/s peak):
+      // nuwork(128) - 1.45 gflop/s
+      // ATI HD 5830: nuwork(128) - 122 gflop/s
+      // nuwork(128) dmine(10) - 540 gflop/s
       // NVidia: nuwork(128) dmine(4), unroll(2) inner - 569 gflop/s
-      nuwork(128) dmine(4) do(i in m) {
+      nuwork(128) do(i in m) {
         def p = ps[i];
         mutable d2 = 1e38f;
-        unroll(2) do(j in n1)
+        do(j in n1)
           d2 = min(d2, dist2(es[j], p));
         df[i] = sqrt(d2);
       }  // nuwork do
@@ -48,14 +52,17 @@ namespace DiField {
       def m = ps.Length;
       def n1 = n;
       def df = ondev array(m) : array[float];
+      // ATI HD 5830: 
+      // nuwork(128) - 145 gflop/s
+      // nuwork(64) dmine(8), unroll(2) inner - 560 gflop/s
       // NVidia:
       // nuwork(256) - 320 gflop/s
       // nuwork(128) dmine(8), unroll(2) inner - 460 gflop/s
-      nuwork(128) dmine(8) do(i in m) {
+      nuwork(64) dmine(8) do(i in m) {
         def p = ps[i];
         mutable ed = 1e38f;
         unroll(2) do(j in n1)
-          ed = min(ed, distEps(es[j], p, eps));       
+          ed = min(ed, distEps(es[j], p, eps));   
         df[i] = ed;
       }  // nuwork do
       df

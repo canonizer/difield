@@ -66,11 +66,14 @@ namespace DiField {
     : array[float];
 
     /** generates vertices for a regular polygon */
-    public static regularVs(n : int, r : float) : array[fvec2] {
+    public static regularVs(n : int, r : float, org : fvec2) 
+    : array[fvec2] {
       def vs = array(n) : array[fvec2];
       def alpha = (2 * Math.PI / n) :> float;
+      def (xorg, yorg) = (org.x, org.y);
       nuwork(64) do(i in n) {
-        vs[i] = fvec2(cos(i * alpha), -sin(i * alpha)) * r;
+        vs[i] = fvec2(xorg, yorg) + 
+        fvec2(cos(i * alpha), -sin(i * alpha)) * r;
       }
       vs
     }

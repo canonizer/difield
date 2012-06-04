@@ -16,7 +16,7 @@ namespace DiFieldTest {
       config def m1 = 512;
       config def r = 10f;
       def m = m1 * m1;
-      def bspPoly = BspPolygon.regular(n, r);
+      def bspPoly = BspPolygon.regular(n, r, fvec2(0, 0));
       def ps = Util.circular2d(m, r * (1 - 0.05f));
       // compute distance
       def t1 = deviceTimeOcl.get();

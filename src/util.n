@@ -15,6 +15,16 @@ namespace DiField {
       ps
     }
 
+    /** non-centered grid with specific origin and step vector) */
+    public grid2dnc(m : int, step : fvec2, org : fvec2) : array[fvec2] {
+      def ps = ondev array(m * m) : array[fvec2];
+      def (xstep, ystep) = (step.x, step.y);
+      def (xorg, yorg) = (org.x, org.y);
+      nuwork(1, 64) do((iy, ix) in (m, m))
+        ps[iy * m + ix] = fvec2(xorg, yorg) + fvec2(ix * xstep, iy * ystep);
+      ps
+    }  // grid2dnc()
+
     /** produces grid, but places tiles of (mt * mt) in size successively in
     memory */
     public gridTiled2d(m : int, mt : int, dx : float, dy : float) : array[fvec2] {

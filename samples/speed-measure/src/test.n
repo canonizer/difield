@@ -1,0 +1,67 @@
+using Extran;
+using Extran.Nuda.OpenCLLib;
+using Extran.Stat.PerfStat;
+using Nemerle.Imperative;
+using System;
+using System.Console;
+
+using DiField;
+
+namespace DiFieldTest {
+
+  /** measures and outputs time data only */
+  public module DiFieldSpeedMeasure {
+
+    usebsp = false;
+
+    /** tests number of points and polygon vertices, returns time spent */
+    public singleTest(sqrtnpoints : int, nvs : int, bsp : bool) : double {
+      def npoints = sqrtnpoints * sqrtnpoints;
+      def r = 0.4f * sqrtnpoints;
+      def org = fvec2(0.5f * sqrtnpoints, 0.5f * sqrtnpoints);
+      // the polygon
+      def poly = if(bsp) BspPolygon.regular(nvs, r, org) else
+        SimplePolygon.regular(nvs, r, org);
+      // the points
+      def points = Util.grid2dnc(sqrtnpoints, fvec2(1, 1), fvec2(1, 1));
+      // do test
+      def t0 = deviceTimeOcl.get();
+      _ = poly.distField(points);
+      def t1 = deviceTimeOcl.get();
+      //Utils.gc();
+      t1 - t0
+    }  // singleTest()
+
+    print(sqrtnpoints : int, nvs : int, time : double) : void {
+      def npoints = sqrtnpoints * sqrtnpoints;
+      WriteLine($"$npoints points x $nvs vertices -> $time s");
+    }
+
+    test1() : void {
+      def sqrtnpoints = 320;
+      def maxnvs = 1024;
+      WriteLine("varying number of vertices:");
+      for(mutable nvs = 1; nvs <= maxnvs; nvs *= 2) {
+        def t = singleTest(sqrtnpoints, nvs, usebsp);
+        print(sqrtnpoints, nvs, t);
+      }
+    }
+
+    test2() : void {
+      def maxsqrtnpoints = 256;
+      def nvs = 1000;
+      WriteLine("varying number of points:");
+      for(mutable sqrtnpoints = 1; sqrtnpoints <= maxsqrtnpoints; sqrtnpoints *= 2) {
+        def t = singleTest(sqrtnpoints, nvs, usebsp);
+        print(sqrtnpoints, nvs, t);
+      }
+    }
+
+    public Main() : void {
+      /*test1();*/
+      test2();
+    }
+
+  }
+
+}

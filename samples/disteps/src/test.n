@@ -20,8 +20,8 @@ namespace DiFieldTest {
       config def eps = 0.1f;
       def passEps = 1e-7f;
       def m = m1 * m1;
-      def simplePoly = SimplePolygon.regular(n, r);
-      def bspPoly = BspPolygon.regular(n, r);
+      def simplePoly = SimplePolygon.regular(n, r, fvec2(0, 0));
+      def bspPoly = BspPolygon.regular(n, r, fvec2(0, 0));
       def ps = Util.circular2d(m, r * (1 - 0.05f));
       def t0 = deviceTimeOcl.get();
       // compute distance

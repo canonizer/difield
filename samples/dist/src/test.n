@@ -15,12 +15,12 @@ namespace DiFieldTest {
 
     public Main() : void {
       config def n = 4000;
-      config def m1 = 1000;
+      config def m1 = 100;
       config def r = 10f;
       def passEps = 1e-7f;
       def m = m1 * m1;
-      def simplePoly = SimplePolygon.regular(n, r);
-      def bspPoly = BspPolygon.regular(n, r);
+      def simplePoly = SimplePolygon.regular(n, r, fvec2(0, 0));
+      def bspPoly = BspPolygon.regular(n, r, fvec2(0, 0));
       //def ps = Util.grid2d(m1, 2 * r / m1, 2 * r / m1);
       def ps = Util.circular2d(m, r * (1f + 0.001f));
       def t0 = deviceTimeOcl.get();

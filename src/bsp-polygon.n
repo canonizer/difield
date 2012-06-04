@@ -300,8 +300,9 @@ namespace DiField {
     }
 
     /** new regular polygon */
-    public static new regular(n : int, r : float) : BspPolygon {
-      BspPolygon(regularVs(n, r));
+    public static new regular(n : int, r : float, org : fvec2) 
+    : BspPolygon {
+      BspPolygon(regularVs(n, r, org));
     }
 
     /** compute distance field */
