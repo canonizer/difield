@@ -37,10 +37,10 @@ namespace DiField {
       // ATI HD 5830: nuwork(128) - 122 gflop/s
       // nuwork(128) dmine(10) - 540 gflop/s
       // NVidia: nuwork(128) dmine(4), unroll(2) inner - 569 gflop/s
-      nuwork(128) do(i in m) {
+      nuwork(128) dmine(4) do(i in m) {
         def p = ps[i];
         mutable d2 = 1e38f;
-        do(j in n1)
+        unroll(2) do(j in n1)
           d2 = min(d2, dist2(es[j], p));
         df[i] = sqrt(d2);
       }  // nuwork do

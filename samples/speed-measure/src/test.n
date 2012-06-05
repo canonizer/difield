@@ -4,6 +4,8 @@ using Extran.Stat.PerfStat;
 using Nemerle.Imperative;
 using System;
 using System.Console;
+using System.Threading;
+using System.Globalization;
 
 using DiField;
 
@@ -16,7 +18,7 @@ namespace DiFieldTest {
 
     /** tests number of points and polygon vertices, returns time spent */
     public singleTest(sqrtnpoints : int, nvs : int, bsp : bool) : double {
-      def npoints = sqrtnpoints * sqrtnpoints;
+      //def npoints = sqrtnpoints * sqrtnpoints;
       def r = 0.4f * sqrtnpoints;
       def org = fvec2(0.5f * sqrtnpoints, 0.5f * sqrtnpoints);
       // the polygon
@@ -37,7 +39,7 @@ namespace DiFieldTest {
       WriteLine($"$npoints points x $nvs vertices -> $time s");
     }
 
-    test1() : void {
+    public test1() : void {
       def sqrtnpoints = 320;
       def maxnvs = 1024;
       WriteLine("varying number of vertices:");
@@ -47,7 +49,7 @@ namespace DiFieldTest {
       }
     }
 
-    test2() : void {
+    public test2() : void {
       def maxsqrtnpoints = 256;
       def nvs = 1000;
       WriteLine("varying number of points:");
@@ -58,10 +60,13 @@ namespace DiFieldTest {
     }
 
     public Main() : void {
-      /*test1();*/
-      test2();
+      Thread.CurrentThread.CurrentCulture =
+      CultureInfo.GetCultureInfo("ru-ru");
+      config("m") def sqrtnpoints = 1;
+      config("n") def nvs = 1;
+      config("b") def bsp = false;
+      def t = singleTest(sqrtnpoints, nvs, bsp);
+      print(sqrtnpoints, nvs, t);
     }
-
   }
-
 }
