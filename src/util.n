@@ -17,7 +17,7 @@ namespace DiField {
 
     /** non-centered grid with specific origin and step vector) */
     public grid2dnc(m : int, step : fvec2, org : fvec2) : array[fvec2] {
-      def ps = ondev array(m * m) : array[fvec2];
+      def ps = /* ondev */ array(m * m) : array[fvec2];
       def (xstep, ystep) = (step.x, step.y);
       def (xorg, yorg) = (org.x, org.y);
       nuwork(1, 64) do((iy, ix) in (m, m))

@@ -60,13 +60,15 @@ namespace DiFieldTest {
     }
 
     public Main() : void {
-      Thread.CurrentThread.CurrentCulture =
+      /*Thread.CurrentThread.CurrentCulture =
       CultureInfo.GetCultureInfo("ru-ru");
       config("m") def sqrtnpoints = 1;
       config("n") def nvs = 1;
       config("b") def bsp = false;
       def t = singleTest(sqrtnpoints, nvs, bsp);
-      print(sqrtnpoints, nvs, t);
+      print(sqrtnpoints, nvs, t);*/
+      test1();
+      test2();
     }
   }
 }
