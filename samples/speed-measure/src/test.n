@@ -14,7 +14,7 @@ namespace DiFieldTest {
   /** measures and outputs time data only */
   public module DiFieldSpeedMeasure {
 
-    usebsp = false;
+    usebsp = true;
 
     /** tests number of points and polygon vertices, returns time spent */
     public singleTest(sqrtnpoints : int, nvs : int, bsp : bool) : double {
@@ -30,7 +30,6 @@ namespace DiFieldTest {
       def t0 = deviceTimeOcl.get();
       _ = poly.distField(points);
       def t1 = deviceTimeOcl.get();
-      //Utils.gc();
       t1 - t0
     }  // singleTest()
 
@@ -41,7 +40,7 @@ namespace DiFieldTest {
 
     public test1() : void {
       def sqrtnpoints = 320;
-      def maxnvs = 1024;
+      def maxnvs = 16384;
       WriteLine("varying number of vertices:");
       for(mutable nvs = 1; nvs <= maxnvs; nvs *= 2) {
         def t = singleTest(sqrtnpoints, nvs, usebsp);
@@ -50,7 +49,7 @@ namespace DiFieldTest {
     }
 
     public test2() : void {
-      def maxsqrtnpoints = 256;
+      def maxsqrtnpoints = 1024;
       def nvs = 1000;
       WriteLine("varying number of points:");
       for(mutable sqrtnpoints = 1; sqrtnpoints <= maxsqrtnpoints; sqrtnpoints *= 2) {
